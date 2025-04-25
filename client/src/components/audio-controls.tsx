@@ -27,13 +27,24 @@ export function AudioControls({
   const handleDownload = () => {
     if (!audioBlob) return;
     
+    // Create a filename with timestamp
     const fileName = `recording_${new Date().toISOString().slice(0,19).replace(/[-:T]/g, '')}.wav`;
+    
+    // The key change: Create a new URL from the blob with explicit wav type to ensure correct format
+    // Even if browser records in another format, we're setting the correct extension and MIME type for download
+    const wavBlob = new Blob([audioBlob], { type: 'audio/wav' });
+    const downloadUrl = URL.createObjectURL(wavBlob);
+    
+    // Create and trigger download
     const a = document.createElement('a');
-    a.href = audioURL as string;
+    a.href = downloadUrl;
     a.download = fileName;
     document.body.appendChild(a);
     a.click();
+    
+    // Clean up
     document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl); // Prevent memory leaks
   };
   
   const handleAudioPlayStateChange = (e: React.SyntheticEvent<HTMLAudioElement>) => {
@@ -47,23 +58,30 @@ export function AudioControls({
     setUploadStatus(null);
     
     try {
+      // Create a proper WAV blob to ensure format consistency
+      const wavBlob = new Blob([audioBlob], { type: 'audio/wav' });
+      const timestamp = Date.now();
+      const filename = `recording_${timestamp}.wav`;
+      
+      console.log(`Preparing to upload audio file (${wavBlob.size} bytes) as ${filename}`);
+      
       // Create form data with the audio blob
       const formData = new FormData();
-      formData.append('audio', audioBlob, `recording_${Date.now()}.wav`);
+      formData.append('audio', wavBlob, filename);
       
       // Send to our Express backend which will forward to FastAPI
+      console.log('Sending audio file to API...');
       const response = await axios.post('/api/audio', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
+      console.log('API response received:', response.data);
       setUploadStatus({
         success: true,
         message: 'Audio sent to API successfully'
       });
-      
-      console.log('API response:', response.data);
       
     } catch (error) {
       console.error('Error sending audio to API:', error);

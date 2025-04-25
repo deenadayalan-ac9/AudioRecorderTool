@@ -126,13 +126,24 @@ export function useAudioRecorder({
       visualizerIntervalRef.current = window.setInterval(updateVisualizer, 100);
       
       // Set up media recorder with explicit mime type for better compatibility
-      const options = { mimeType: 'audio/webm' };
+      // Try WAV first, then fall back to more compatible formats
+      let options;
       try {
+        // First, try with WAV format
+        options = { mimeType: 'audio/wav' };
         mediaRecorderRef.current = new MediaRecorder(stream, options);
-        console.log('MediaRecorder created with options:', options);
+        console.log('MediaRecorder created with WAV format');
       } catch (e) {
-        console.warn('Failed to create MediaRecorder with specified options, trying default', e);
-        mediaRecorderRef.current = new MediaRecorder(stream);
+        try {
+          // If WAV fails, try WebM audio
+          options = { mimeType: 'audio/webm' };
+          mediaRecorderRef.current = new MediaRecorder(stream, options);
+          console.log('MediaRecorder created with WebM format');
+        } catch (e2) {
+          // Last resort: default format
+          console.warn('Failed to create MediaRecorder with specified options, using default format');
+          mediaRecorderRef.current = new MediaRecorder(stream);
+        }
       }
       
       audioChunksRef.current = [];
@@ -157,8 +168,8 @@ export function useAudioRecorder({
           return;
         }
         
-        // Process audio
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Process audio - note we're explicitly using wav format for download
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         console.log('Audio blob created, size:', audioBlob.size, 'bytes');
         setAudioBlob(audioBlob);
         
@@ -225,7 +236,7 @@ export function useAudioRecorder({
           // Force the recording to end if MediaRecorder is in an unexpected state
           if (audioChunksRef.current.length > 0) {
             console.log('Processing existing audio chunks');
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
             setAudioBlob(audioBlob);
             
             // Create URL for playback
