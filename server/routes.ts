@@ -38,7 +38,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get FastAPI URL from environment or use default
-      const fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8090/upload-audio';
+      const fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8080/api/audio';
       
       log(`Received audio file: ${req.file.filename}`);
       
