@@ -87,21 +87,36 @@ export function useAudioRecorder({
   const startRecording = useCallback(async () => {
     try {
       // Don't start if already recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') return;
+      if (isRecording || (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording')) {
+        console.log('Already recording, ignoring start request');
+        return;
+      }
+      
+      console.log('Starting audio recording...');
       
       // Check browser support
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Recording not supported in this browser');
         setStatusMessage('Recording not supported in this browser');
         setStatusType('error');
         return;
       }
       
-      // Get audio stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Get audio stream with explicit constraints for better compatibility
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
+      
+      console.log('Audio stream acquired successfully');
       streamRef.current = stream;
       
       // Set up audio context and analyser for visualization
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioContext();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
@@ -110,18 +125,41 @@ export function useAudioRecorder({
       // Start visualizer interval
       visualizerIntervalRef.current = window.setInterval(updateVisualizer, 100);
       
-      // Set up media recorder
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      // Set up media recorder with explicit mime type for better compatibility
+      const options = { mimeType: 'audio/webm' };
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, options);
+        console.log('MediaRecorder created with options:', options);
+      } catch (e) {
+        console.warn('Failed to create MediaRecorder with specified options, trying default', e);
+        mediaRecorderRef.current = new MediaRecorder(stream);
+      }
+      
       audioChunksRef.current = [];
       
       // Add event listeners
-      mediaRecorderRef.current.addEventListener('dataavailable', (event) => {
-        audioChunksRef.current.push(event.data);
-      });
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log('Data available from recorder:', event.data.size, 'bytes');
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
       
-      mediaRecorderRef.current.addEventListener('stop', () => {
+      mediaRecorderRef.current.onstop = () => {
+        console.log('MediaRecorder stopped, processing audio...');
+        
+        // Ensure we have data to process
+        if (audioChunksRef.current.length === 0) {
+          console.warn('No audio data collected');
+          setStatusMessage('No audio recorded. Please try again.');
+          setStatusType('error');
+          cleanupResources();
+          return;
+        }
+        
         // Process audio
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log('Audio blob created, size:', audioBlob.size, 'bytes');
         setAudioBlob(audioBlob);
         
         // Create URL for playback
@@ -137,10 +175,11 @@ export function useAudioRecorder({
         
         // Clean up
         cleanupResources();
-      });
+      };
       
-      // Start recording
-      mediaRecorderRef.current.start();
+      // Request data every 1 second to ensure we get data even for short recordings
+      mediaRecorderRef.current.start(1000);
+      console.log('MediaRecorder started');
       
       // Update state and UI
       setIsRecording(true);
@@ -155,6 +194,7 @@ export function useAudioRecorder({
       console.error('Recording error:', error);
       
       if ((error as Error).name === 'NotAllowedError' || (error as Error).name === 'PermissionDeniedError') {
+        console.warn('Microphone permission denied');
         if (onPermissionDenied) onPermissionDenied();
       } else {
         setStatusMessage(`Error: ${(error as Error).message}`);
@@ -163,14 +203,58 @@ export function useAudioRecorder({
       
       cleanupResources();
     }
-  }, [cleanupResources, updateRecordingTime, updateVisualizer, audioURL, onPermissionDenied]);
+  }, [cleanupResources, updateRecordingTime, updateVisualizer, audioURL, onPermissionDenied, isRecording]);
   
   // Stop recording
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    console.log('Stopping recording...');
+    
+    if (!isRecording) {
+      console.log('Not currently recording, nothing to stop');
+      return;
     }
-  }, []);
+    
+    if (mediaRecorderRef.current) {
+      try {
+        // Check if we're actually recording before trying to stop
+        if (mediaRecorderRef.current.state === 'recording') {
+          console.log('MediaRecorder is in recording state, stopping it');
+          mediaRecorderRef.current.stop();
+        } else {
+          console.log('MediaRecorder is not in recording state:', mediaRecorderRef.current.state);
+          // Force the recording to end if MediaRecorder is in an unexpected state
+          if (audioChunksRef.current.length > 0) {
+            console.log('Processing existing audio chunks');
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            setAudioBlob(audioBlob);
+            
+            // Create URL for playback
+            if (audioURL) URL.revokeObjectURL(audioURL);
+            const url = URL.createObjectURL(audioBlob);
+            setAudioURL(url);
+            
+            // Update UI
+            setShowControls(true);
+          }
+          
+          setIsRecording(false);
+          setStatusMessage('Press and hold to record');
+          setStatusType('info');
+          cleanupResources();
+        }
+      } catch (error) {
+        console.error('Error stopping recording:', error);
+        // Force cleanup on error
+        setIsRecording(false);
+        cleanupResources();
+      }
+    } else {
+      console.log('MediaRecorder not available, cleaning up');
+      // Force cleanup if mediaRecorder is not available
+      setIsRecording(false);
+      cleanupResources();
+    }
+  }, [isRecording, audioURL, cleanupResources]);
   
   // Reset recording
   const resetRecording = useCallback(() => {
