@@ -32,7 +32,14 @@ DEBUG = os.getenv("NODE_ENV", "development") == "development"
 @app.get("/api/health")
 async def health_check():
     """API endpoint for health check"""
-    return {"status": "ok", "timestamp": time.time()}
+    from datetime import datetime
+    return {
+        "status": "ok", 
+        "server": "FastAPI", 
+        "timestamp": time.time(),
+        "datetime": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }
 
 @app.post("/api/audio")
 async def upload_audio(audio: UploadFile = File(...)):
@@ -142,4 +149,4 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server.app:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)
