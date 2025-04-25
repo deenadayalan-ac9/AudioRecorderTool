@@ -70,4 +70,4 @@ async def process_audio(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("fastapi_audio_processor:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("fastapi_audio_processor:app", host="0.0.0.0", port=8090, reload=True)
