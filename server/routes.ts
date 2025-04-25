@@ -12,22 +12,17 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
-    const uploadDir = path.join(__dirname, "../uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + '.wav');
-  }
-});
+// Create uploads directory if it doesn't exist
+// Use import.meta.url instead of __dirname for ES modules
+const __filename = new URL(import.meta.url).pathname;
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
-const upload = multer({ storage: storage });
+// Configure multer for file uploads
+const upload = multer({ dest: uploadDir });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API endpoint for health check
