@@ -26,6 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Create development environment variable
+DEBUG = os.getenv("NODE_ENV", "development") == "development"
+
 @app.get("/api/health")
 async def health_check():
     """API endpoint for health check"""
