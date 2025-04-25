@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Upload, Download, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import { createWavBlobFromAudioBlob, generateRecordingFilename } from '../lib/audio-utils';
 
 interface AudioControlsProps {
   show: boolean;
@@ -24,27 +25,46 @@ export function AudioControls({
     message: string;
   } | null>(null);
   
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!audioBlob) return;
     
-    // Create a filename with timestamp
-    const fileName = `recording_${new Date().toISOString().slice(0,19).replace(/[-:T]/g, '')}.wav`;
-    
-    // The key change: Create a new URL from the blob with explicit wav type to ensure correct format
-    // Even if browser records in another format, we're setting the correct extension and MIME type for download
-    const wavBlob = new Blob([audioBlob], { type: 'audio/wav' });
-    const downloadUrl = URL.createObjectURL(wavBlob);
-    
-    // Create and trigger download
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    
-    // Clean up
-    document.body.removeChild(a);
-    URL.revokeObjectURL(downloadUrl); // Prevent memory leaks
+    try {
+      // Create a filename with timestamp
+      const fileName = generateRecordingFilename();
+      
+      // Use our WAV converter to create a proper WAV file
+      console.log('Converting audio to WAV format for download...');
+      const wavBlob = await createWavBlobFromAudioBlob(audioBlob);
+      console.log(`WAV conversion complete. File size: ${wavBlob.size} bytes`);
+      
+      // Create a download URL
+      const downloadUrl = URL.createObjectURL(wavBlob);
+      
+      // Create and trigger download
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl); // Prevent memory leaks
+    } catch (error) {
+      console.error('Error creating WAV file for download:', error);
+      // Fallback to basic download if conversion fails
+      const fileName = generateRecordingFilename();
+      const fallbackBlob = new Blob([audioBlob], { type: 'audio/wav' });
+      const downloadUrl = URL.createObjectURL(fallbackBlob);
+      
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+    }
   };
   
   const handleAudioPlayStateChange = (e: React.SyntheticEvent<HTMLAudioElement>) => {
@@ -58,12 +78,14 @@ export function AudioControls({
     setUploadStatus(null);
     
     try {
-      // Create a proper WAV blob to ensure format consistency
-      const wavBlob = new Blob([audioBlob], { type: 'audio/wav' });
+      // Use our WAV converter to create a proper WAV file
+      console.log('Converting audio to WAV format for API upload...');
+      const wavBlob = await createWavBlobFromAudioBlob(audioBlob);
+      
+      // Generate filename with timestamp
       const timestamp = Date.now();
       const filename = `recording_${timestamp}.wav`;
-      
-      console.log(`Preparing to upload audio file (${wavBlob.size} bytes) as ${filename}`);
+      console.log(`API upload preparation complete. WAV file size: ${wavBlob.size} bytes`);
       
       // Create form data with the audio blob
       const formData = new FormData();
@@ -85,6 +107,33 @@ export function AudioControls({
       
     } catch (error) {
       console.error('Error sending audio to API:', error);
+      
+      // If WAV conversion failed, try with the original blob as fallback
+      if (error.message?.includes('WAV')) {
+        try {
+          console.log('WAV conversion failed, trying with original audio format');
+          const fallbackBlob = new Blob([audioBlob], { type: 'audio/wav' });
+          const filename = `recording_fallback_${Date.now()}.wav`;
+          
+          const formData = new FormData();
+          formData.append('audio', fallbackBlob, filename);
+          
+          const response = await axios.post('/api/audio', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          console.log('API response with fallback format:', response.data);
+          setUploadStatus({
+            success: true,
+            message: 'Audio sent to API successfully (fallback format)'
+          });
+          return;
+        } catch (fallbackError) {
+          console.error('Fallback upload also failed:', fallbackError);
+        }
+      }
       
       setUploadStatus({
         success: false,
