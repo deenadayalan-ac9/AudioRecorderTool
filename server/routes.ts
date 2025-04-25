@@ -29,7 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/health', async (req, res) => {
     try {
       // Forward to FastAPI
-      const response = await axios.get('http://localhost:8080/api/health');
+      const response = await axios.get('/api/health');
       res.status(200).json(response.data);
     } catch (error) {
       // Fallback if FastAPI is not available
@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API endpoint for uploads listing
   app.get('/api/uploads', async (req, res) => {
     try {
-      const response = await axios.get('http://localhost:8080/api/uploads');
+      const response = await axios.get('/api/uploads');
       res.status(200).json(response.data);
     } catch (error) {
       log(`Error getting uploads from FastAPI: ${error}`);
@@ -57,7 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get FastAPI URL from environment or use default
-      const fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8080/api/audio';
+      const fastApiUrl = process.env.FASTAPI_URL || '/api/audio';
       
       log(`Received audio file: ${req.file.filename}`);
       

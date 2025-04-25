@@ -14,7 +14,7 @@ export function FastApiTest() {
     setLoading(true);
     try {
       // Try direct connection to FastAPI server
-      const response = await fetch('http://localhost:8080/api/health');
+      const response = await fetch('/api/health');
       const data = await response.json();
       setApiStatus(data.status === 'ok' ? 'Connected' : 'Error');
       toast({
