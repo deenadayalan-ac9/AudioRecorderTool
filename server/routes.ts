@@ -26,8 +26,27 @@ const upload = multer({ dest: uploadDir });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API endpoint for health check
-  app.get('/api/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Forward to FastAPI
+      const response = await axios.get('http://localhost:8080/api/health');
+      res.status(200).json(response.data);
+    } catch (error) {
+      // Fallback if FastAPI is not available
+      log(`Warning: FastAPI health check failed: ${error}`);
+      res.status(200).json({ status: 'ok', note: 'Express fallback' });
+    }
+  });
+
+  // API endpoint for uploads listing
+  app.get('/api/uploads', async (req, res) => {
+    try {
+      const response = await axios.get('http://localhost:8080/api/uploads');
+      res.status(200).json(response.data);
+    } catch (error) {
+      log(`Error getting uploads from FastAPI: ${error}`);
+      res.status(500).json({ error: 'Failed to get uploads' });
+    }
   });
 
   // API endpoint to forward the audio to FastAPI

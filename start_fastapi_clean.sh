@@ -16,6 +16,6 @@ if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
 fi
 
 # Start the FastAPI server
-echo "Starting FastAPI server on port 5000..."
+echo "Starting FastAPI server on port 8080..."
 cd "$(dirname "$0")"
-exec python -m uvicorn server.app:app --host 0.0.0.0 --port 5000 --reload
+exec python -m uvicorn server.app:app --host 0.0.0.0 --port 8080 --reload
