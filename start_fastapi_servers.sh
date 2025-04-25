@@ -1,19 +1,16 @@
 #!/bin/bash
 
-# Start the main FastAPI server
-cd server && python app.py &
+# Start the FastAPI servers in the background
+echo "Starting FastAPI servers..."
 
-# Start the audio processor FastAPI server
-cd server && python fastapi_audio_processor.py &
+# Main server
+cd server && python app.py > ../fastapi_main.log 2>&1 &
+echo $! > ../fastapi_main.pid
+echo "Main server started on port 8080"
 
-# Wait for both servers to be ready
-sleep 5
+# Audio processor
+cd server && python fastapi_audio_processor.py > ../fastapi_processor.log 2>&1 &
+echo $! > ../fastapi_processor.pid
+echo "Audio processor started on port 8090"
 
-echo "FastAPI servers are running:"
-echo "- Main server: http://0.0.0.0:8080"
-echo "- Audio processor: http://0.0.0.0:8090"
-echo ""
-echo "Press Ctrl+C to stop the servers"
-
-# Keep the script running
-tail -f /dev/null
+echo "FastAPI servers started successfully!"
