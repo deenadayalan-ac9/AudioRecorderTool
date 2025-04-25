@@ -46,7 +46,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create form data to send to FastAPI
         const formData = new FormData();
         const fileStream = fs.createReadStream(req.file.path);
-        formData.append('file', fileStream, { filename: req.file.filename });
+        // Important: The parameter name must match what FastAPI expects (audio)
+        formData.append('audio', fileStream, { filename: req.file.originalname || req.file.filename });
         
         // Send to FastAPI
         const response = await axios.post(fastApiUrl, formData, {
