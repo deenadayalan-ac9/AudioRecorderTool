@@ -107,8 +107,10 @@ export function ChatInterface() {
   const handleStopRecording = async () => {
     stopRecording();
     
-    // Need to wait a bit for the audio blob to be available
+    // Need to wait longer for the audio blob to be available - increasing delay to ensure blob is ready
     setTimeout(async () => {
+      console.log('Checking for audio blob after timeout...');
+      // Re-check the audioBlob directly to make sure it's available
       if (!audioBlob) {
         console.error('No audio blob available after recording');
         return;
