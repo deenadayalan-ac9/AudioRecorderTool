@@ -48,6 +48,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to get uploads' });
     }
   });
+  
+  // API endpoint for text processing
+  app.post('/api/text', async (req, res) => {
+    try {
+      const text = req.query.text;
+      
+      if (!text) {
+        return res.status(400).json({ error: 'No text provided' });
+      }
+      
+      log(`Received text for processing: "${text}"`);
+      
+      // Forward to FastAPI
+      try {
+        const fastApiUrl = process.env.FASTAPI_URL?.replace('/audio', '/text') || '/api/text';
+        const response = await axios.post(fastApiUrl, null, {
+          params: { text }
+        });
+        
+        // Return the FastAPI response
+        res.status(200).json(response.data);
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          log(`Error forwarding to FastAPI text endpoint: ${error.message}`);
+          if (error.response) {
+            return res.status(error.response.status).json({ 
+              error: `FastAPI error: ${error.response.statusText}`,
+              details: error.response.data
+            });
+          }
+          return res.status(500).json({ error: `Network error: ${error.message}` });
+        }
+        throw error;
+      }
+    } catch (error) {
+      log(`Server error processing text: ${error}`);
+      res.status(500).json({ error: 'Failed to process text' });
+    }
+  });
 
   // API endpoint to forward the audio to FastAPI
   app.post('/api/audio', upload.single('audio'), async (req: MulterRequest, res) => {
