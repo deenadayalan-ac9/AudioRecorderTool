@@ -7,6 +7,13 @@ import fs from "fs";
 import path from "path";
 import { log } from "./vite";
 
+// Configure axios to talk to the FastAPI server
+const FASTAPI_BASE_URL = process.env.FASTAPI_URL || 'http://localhost:8080';
+const apiClient = axios.create({
+  baseURL: FASTAPI_BASE_URL,
+  timeout: 10000,
+});
+
 // Add type for multer request
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -29,7 +36,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/health', async (req, res) => {
     try {
       // Forward to FastAPI
-      const response = await axios.get('/api/health');
+      const response = await apiClient.get('/api/health');
       res.status(200).json(response.data);
     } catch (error) {
       // Fallback if FastAPI is not available
@@ -41,7 +48,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API endpoint for uploads listing
   app.get('/api/uploads', async (req, res) => {
     try {
-      const response = await axios.get('/api/uploads');
+      const response = await apiClient.get('/api/uploads');
       res.status(200).json(response.data);
     } catch (error) {
       log(`Error getting uploads from FastAPI: ${error}`);
@@ -62,8 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Forward to FastAPI
       try {
-        const fastApiUrl = process.env.FASTAPI_URL?.replace('/audio', '/text') || '/api/text';
-        const response = await axios.post(fastApiUrl, null, {
+        const response = await apiClient.post('/api/text', null, {
           params: { text }
         });
         
@@ -95,9 +101,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No audio file provided' });
       }
 
-      // Get FastAPI URL from environment or use default
-      const fastApiUrl = process.env.FASTAPI_URL || '/api/audio';
-      
       log(`Received audio file: ${req.file.filename}`);
       
       try {
@@ -108,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         formData.append('audio', fileStream, { filename: req.file.originalname || req.file.filename });
         
         // Send to FastAPI
-        const response = await axios.post(fastApiUrl, formData, {
+        const response = await apiClient.post('/api/audio', formData, {
           headers: {
             ...formData.getHeaders(),
           },
