@@ -31,11 +31,13 @@ export function ChatInterface() {
   const { 
     isRecording,
     audioBlob,
+    audioURL,
     startRecording,
     stopRecording,
     resetRecording,
     statusMessage,
-    statusType
+    statusType,
+    showControls
   } = useAudioRecorder();
   
   // Auto-scroll to bottom of chat
@@ -104,117 +106,120 @@ export function ChatInterface() {
     await startRecording();
   };
   
-  const handleStopRecording = async () => {
-    stopRecording();
+  // When audio recording is complete
+  useEffect(() => {
+    // If we have an audio blob and controls are shown (recording finished)
+    if (audioBlob && showControls && !isProcessing) {
+      console.log('Audio blob available in useEffect, size:', audioBlob.size);
+      handleAudioMessage();
+    }
+  }, [audioBlob, showControls]);
+  
+  const handleAudioMessage = async () => {
+    if (!audioBlob) {
+      console.error('No audio blob available');
+      return;
+    }
     
-    // Need to wait longer for the audio blob to be available - increasing delay to ensure blob is ready
-    setTimeout(async () => {
-      console.log('Checking for audio blob after timeout...');
-      // Re-check the audioBlob directly to make sure it's available
-      if (!audioBlob) {
-        console.error('No audio blob available after recording');
-        return;
-      }
+    // Create a unique ID for this message
+    const messageId = generateId();
+    
+    try {
+      // Create a message for the audio
+      const audioMessage: Message = {
+        id: messageId,
+        text: 'Voice message',
+        sender: 'user',
+        timestamp: new Date(),
+        audioUrl: audioURL, // We already have the URL from the recorder
+        processingState: 'sending'
+      };
       
-      console.log('Audio recording stopped, blob size:', audioBlob.size);
+      // Add the audio message to the chat
+      setMessages(prev => [...prev, audioMessage]);
+      setIsProcessing(true);
       
-      // Create a unique ID for this message to track it through the process
-      const messageId = generateId();
-      
+      // Convert audio to WAV format for API
       try {
-        // Create a URL for the audio file
-        const audioUrl = URL.createObjectURL(audioBlob);
+        console.log('Converting audio to WAV format...');
+        const wavBlob = await createWavBlobFromAudioBlob(audioBlob);
+        console.log('WAV conversion complete, size:', wavBlob.size);
         
-        // Create a message for the audio
-        const audioMessage: Message = {
-          id: messageId,
-          text: 'Voice message',
-          sender: 'user',
+        // Update message state to processing
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? {...msg, processingState: 'processing'} 
+            : msg
+        ));
+        
+        // Create form data for API request
+        const formData = new FormData();
+        formData.append('audio', wavBlob, `recording_${Date.now()}.wav`);
+        
+        // Send to API
+        console.log('Sending audio to API...');
+        const response = await axios.post('/api/audio', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        console.log('API response:', response.data);
+        
+        // Update message state to complete
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? {...msg, processingState: 'complete'} 
+            : msg
+        ));
+        
+        // Get the response from the API
+        // The API now returns a string directly, or via a response field
+        const responseText = typeof response.data === 'string' ? response.data : 
+                            response.data?.response || 
+                            "I processed your audio message.";
+        
+        // Create AI response message
+        const aiResponse: Message = {
+          id: generateId(),
+          text: responseText,
+          sender: 'ai',
           timestamp: new Date(),
-          audioUrl: audioUrl,
-          processingState: 'sending'
         };
         
-        // Add the audio message to the chat
-        setMessages(prev => [...prev, audioMessage]);
-        setIsProcessing(true);
+        setMessages(prev => [...prev, aiResponse]);
         
-        // Convert audio to WAV format for API
-        try {
-          console.log('Converting audio to WAV format...');
-          const wavBlob = await createWavBlobFromAudioBlob(audioBlob);
-          console.log('WAV conversion complete, size:', wavBlob.size);
-          
-          // Update message state to processing
-          setMessages(prev => prev.map(msg => 
-            msg.id === messageId 
-              ? {...msg, processingState: 'processing'} 
-              : msg
-          ));
-          
-          // Create form data for API request
-          const formData = new FormData();
-          formData.append('audio', wavBlob, `recording_${Date.now()}.wav`);
-          
-          // Send to API
-          console.log('Sending audio to API...');
-          const response = await axios.post('/api/audio', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-          console.log('API response:', response.data);
-          
-          // Update message state to complete
-          setMessages(prev => prev.map(msg => 
-            msg.id === messageId 
-              ? {...msg, processingState: 'complete'} 
-              : msg
-          ));
-          
-          // Get the response from the API 
-          // The API now returns a string directly, or via a response field
-          const responseText = typeof response.data === 'string' ? response.data : 
-                               response.data?.response || 
-                               "I processed your audio message.";
-          
-          // Create AI response message
-          const aiResponse: Message = {
-            id: generateId(),
-            text: responseText,
-            sender: 'ai',
-            timestamp: new Date(),
-          };
-          
-          setMessages(prev => [...prev, aiResponse]);
-          
-        } catch (error) {
-          console.error('Error processing audio:', error);
-          
-          // Update message state to error
-          setMessages(prev => prev.map(msg => 
-            msg.id === messageId 
-              ? {...msg, processingState: 'error'} 
-              : msg
-          ));
-          
-          // Add error message
-          const errorMessage: Message = {
-            id: generateId(),
-            text: 'Sorry, I had trouble processing your audio. Please try again.',
-            sender: 'ai',
-            timestamp: new Date(),
-          };
-          
-          setMessages(prev => [...prev, errorMessage]);
-        }
       } catch (error) {
-        console.error('Error creating audio message:', error);
-      } finally {
-        setIsProcessing(false);
-        resetRecording();
+        console.error('Error processing audio:', error);
+        
+        // Update message state to error
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? {...msg, processingState: 'error'} 
+            : msg
+        ));
+        
+        // Add error message
+        const errorMessage: Message = {
+          id: generateId(),
+          text: 'Sorry, I had trouble processing your audio. Please try again.',
+          sender: 'ai',
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, errorMessage]);
       }
-    }, 500);
+    } catch (error) {
+      console.error('Error creating audio message:', error);
+    } finally {
+      setIsProcessing(false);
+      resetRecording();
+    }
+  };
+  
+  const handleStopRecording = () => {
+    console.log('Stopping recording...');
+    stopRecording();
+    // The useEffect will handle the rest when audioBlob becomes available
   };
   
   const clearChat = () => {

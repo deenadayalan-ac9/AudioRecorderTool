@@ -171,6 +171,8 @@ export function useAudioRecorder({
         // Process audio - note we're explicitly using wav format for download
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         console.log('Audio blob created, size:', audioBlob.size, 'bytes');
+        
+        // Immediately set the audio blob to make it available
         setAudioBlob(audioBlob);
         
         // Create URL for playback
