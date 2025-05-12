@@ -73,7 +73,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           params: { text }
         });
         
-        // Return the FastAPI response
+        // Return the FastAPI response - now just a string
         res.status(200).json(response.data);
       } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -119,10 +119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           maxBodyLength: Infinity,
         });
         
-        // Return the FastAPI response
+        // Return the FastAPI response - now just a string
         res.status(200).json({ 
           message: 'Audio forwarded to FastAPI successfully',
-          fastApiResponse: response.data 
+          response: response.data 
         });
         
       } catch (error) {

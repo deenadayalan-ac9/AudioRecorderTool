@@ -37,7 +37,7 @@ async def health_check():
     """API endpoint for health check"""
     return {"status": "ok", "timestamp": time.time()}
 
-@app.post("/api/audio")
+@app.post("/api/audio", response_model=str)
 async def process_audio(audio: UploadFile = File(...)):
     """
     Process uploaded audio file.
@@ -55,23 +55,19 @@ async def process_audio(audio: UploadFile = File(...)):
             f.write(await audio.read())
         
         # Here you would typically process the audio with some AI or analysis tool
-        # For now, we'll just return a simple response
-        processed_text = "I received your audio message. This is where audio processing would happen."
+        # For now, we'll return the response as a string to match the OpenAPI spec
+        processed_text = f"I processed your audio recording (saved as {filename}). The audio is {os.path.getsize(file_path)} bytes in size. This is where advanced audio analysis would happen."
         
-        return {
-            "status": "success",
-            "filename": filename,
-            "size": os.path.getsize(file_path),
-            "response": processed_text
-        }
+        # Return directly as a string to match the OpenAPI spec
+        return processed_text
     
     except Exception as e:
-        return JSONResponse(
+        raise HTTPException(
             status_code=500,
-            content={"status": "error", "message": str(e)}
+            detail=f"Error processing audio: {str(e)}"
         )
 
-@app.post("/api/text")
+@app.post("/api/text", response_model=str)
 async def process_text(text: str = Query(...)):
     """
     Process text input.
@@ -99,15 +95,13 @@ async def process_text(text: str = Query(...)):
         else:
             response = "I received your message: '" + text + "'. How can I assist you further?"
         
-        return {
-            "status": "success",
-            "response": response
-        }
+        # Return directly as a string to match the OpenAPI spec
+        return response
     
     except Exception as e:
-        return JSONResponse(
+        raise HTTPException(
             status_code=500,
-            content={"status": "error", "message": str(e)}
+            detail=f"Error processing text: {str(e)}"
         )
 
 @app.get("/api/uploads/{filename}")

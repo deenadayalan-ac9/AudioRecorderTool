@@ -71,10 +71,10 @@ export function ChatInterface() {
         params: { text: inputText.trim() }
       });
       
-      // Create AI response
+      // Create AI response - API now returns a string directly
       const aiResponse: Message = {
         id: generateId(),
-        text: response.data?.response || "I processed your message, but I don't have a specific response.",
+        text: typeof response.data === 'string' ? response.data : "I processed your message, but I don't have a specific response.",
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -170,10 +170,11 @@ export function ChatInterface() {
               : msg
           ));
           
-          // Get the response from the API
-          const responseText = response.data?.fastApiResponse?.response || 
-                              response.data?.response || 
-                              "I processed your audio message.";
+          // Get the response from the API 
+          // The API now returns a string directly, or via a response field
+          const responseText = typeof response.data === 'string' ? response.data : 
+                               response.data?.response || 
+                               "I processed your audio message.";
           
           // Create AI response message
           const aiResponse: Message = {
